@@ -89,8 +89,8 @@ def get_all_combinations(scene_occurrences, frame_occurrences,
         salience_df = scene_occurrences[scene_df.columns]
         # Normalize so that we have one probability distribution per column (scene).
         salience_df = salience_df.div(salience_df.sum(axis=0), axis=1)
-        # Compute median probability of verbs of interest in each scene.
-        scene_saliences = salience_df.loc[[verb1, verb2]].median(axis=0)
+        # Compute minimum probability of verbs of interest in each scene.
+        scene_saliences = salience_df.loc[[verb1, verb2]].min(axis=0)
 
         # Retain just the top K scenes ranked by v1--v2 salience.
         retain_scenes = list(scene_saliences.sort_values(ascending=False).head(k_most_salient).index)
@@ -151,7 +151,7 @@ def score_scene(scene_df, salience_df, verb1, verb2):
     var_v1_scene = var_v1_scene.mean()
 
     # Calculate salience of verb1, verb2 in scenes
-    salience = salience_df.loc[[verb1, verb2]].median(axis=0).mean()
+    salience = salience_df.loc[[verb1, verb2]].min(axis=0).mean()
     return var_v1_scene, salience
 
 def score_frame(frame_df, verb1, verb2):
