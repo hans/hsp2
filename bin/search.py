@@ -12,6 +12,7 @@ Concretely, we are searching for pairs of verbs $(v_1, v_2)$ such that
 2. there exist some set of observed syntactic frames $F$ such that
     a. $p(v_1 \mid F) = \prod_i p(v_1 \mid F_i)$ has low variance.
        (The two are *de-conflated* with syntactic frame information.)
+    b. TODO document total variation.
 
 NB that the above probability distributions have support over just $v_1$ and
 $v_2$, except for $p_{all}$, which is used to establish the salience of $v_1$
@@ -146,18 +147,27 @@ def score_scene(scene_df, salience_df, verb1, verb2):
     scene_df is a verb * scene df containing just two rows for verb1 and verb2
     salience_df is a verb * scene df containing all verb rows
     """
+    # First component: variance of p(v1) per scene set. Maximize.
     var_v1_scene = scene_df.loc[verb1]
     var_v1_scene *= 1 - var_v1_scene
     var_v1_scene = var_v1_scene.mean()
 
-    # Calculate salience of verb1, verb2 in scenes
+    # Calculate salience of verb1, verb2 in scenes. Maximize.
     salience = salience_df.loc[[verb1, verb2]].min(axis=0).mean()
-    return var_v1_scene, salience
+
+    return -var_v1_scene, -salience
 
 def score_frame(frame_df, verb1, verb2):
+    # First component: variance of p(v1) per frame set. Minimize.
     var_v1_frame = frame_df.loc[verb1]
     var_v1_frame *= 1 - var_v1_frame
-    return var_v1_frame.mean()
+    var_v1_frame = var_v1_frame.mean()
+
+    # Second component: total variation of p(v1) across frame sets. Maximize.
+    # This ensures that the frame set has distinguishing frames for each verb.
+    total_variation = frame_df.loc[verb1].max() - frame_df.loc[verb1].min()
+
+    return var_v1_frame, -total_variation
 
 
 def worker_score(push_queue, candidates_desc):
@@ -188,16 +198,17 @@ def worker_score(push_queue, candidates_desc):
                                 verb1, verb2)
                     for scene_set in scene_sets]
     # TODO Magic number
-    scene_scores = {scene_set: ((1 - alpha) * (1 - scene_var) + 0.5 * (1 - scene_salience),
-                                1 - scene_var, 1 - scene_salience)
-                    for scene_set, (scene_var, scene_salience)
+    scene_scores = {scene_set: ((1 - alpha) * neg_scene_var + 0.5 * neg_scene_salience,
+                                neg_scene_var, neg_scene_salience)
+                    for scene_set, (neg_scene_var, neg_scene_salience)
                     in zip(scene_sets, scene_scores)}
 
     # Enumerate frame combinations and score.
     frame_vars = [score_frame(frame_df[list(frame_set)], verb1, verb2)
                   for frame_set in frame_sets]
-    frame_scores = {frame_set: alpha * frame_var
-                    for frame_set, frame_var in zip(frame_sets, frame_vars)}
+    frame_scores = {frame_set: (alpha * frame_var + neg_total_variation,
+                                frame_var, neg_total_variation)
+                    for frame_set, (frame_var, neg_total_variation) in zip(frame_sets, frame_vars)}
 
     # Now combine scene + frame, only computing the top K.
     max_candidates = int(np.sqrt(push_queue.get_maxsize()))
@@ -206,10 +217,12 @@ def worker_score(push_queue, candidates_desc):
 
     for (scene_set, scene_score), (frame_set, frame_score) in itertools.product(scene_scores, frame_scores):
         scene_score_comb, scene_score_var, scene_score_salience = scene_score
-        total_score = scene_score_comb + frame_score
+        frame_score_comb, frame_score_var, frame_score_negtv = frame_score
+        total_score = scene_score_comb + frame_score_comb
 
         # Prepare an item for insertion into queue
-        item_score = (total_score, scene_score_var, scene_score_salience, frame_score)
+        item_score = (total_score, scene_score_var, scene_score_salience,
+                      frame_score_var, frame_score_negtv)
         item_descriptor = (verb1, verb2, tuple(scene_set), tuple(frame_set))
         item = (item_score, item_descriptor)
         push_queue.put_or_drop(item)
@@ -286,7 +299,8 @@ def main(args):
     def save_results():
         # Save results so far.
         df = pd.DataFrame([tuple(score) + tuple(descriptor) for score, descriptor in push_queue.get_all()],
-                          columns=["score", "inv_var_v1_scene", "inv_salience", "var_v1_frame",
+                          columns=["score", "neg_var_v1_scene", "neg_salience",
+                                   "var_v1_frame", "neg_frame_tv",
                                    "verb1", "verb2", "scene_set", "frame_set"])
         df = df.sort_values("score")
         df.to_csv(args.out_path)
