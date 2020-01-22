@@ -28,7 +28,7 @@ def prepare_item_seq_dict(item_seq):
     for item in item_seq:
         item_ret = []
         for trial in item:
-            (item_idx, scene, verb), sentence, used_nonces = trial
+            (item_idx, scene), sentence_data = trial
 
             # scene_image_path = "%s/%i.jpg" % (SCENE_IMAGES_PATH, scene)
             # if not Path(scene_image_path).exists():
@@ -39,15 +39,15 @@ def prepare_item_seq_dict(item_seq):
             item_ret.append({
                 "item_idx": item_idx,
                 "scene": scene,
-                "verb": verb,
-
                 "scene_image_url": scene_image_url,
 
-                "sentence": sentence,
-                "used_nonces": used_nonces,
+                "sentence_data": sentence_data,
             })
 
         ret["items"].append(item_ret)
+
+    from pprint import pprint
+    pprint(ret)
 
     return ret
 

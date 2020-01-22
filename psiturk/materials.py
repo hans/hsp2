@@ -128,12 +128,15 @@ def prepare_item_sequences(df, items_per_sequence=2):
 
         for item_idx in item_comb:
             item_trials = []
-            for row_idx, row in df.loc[item_idx].iterrows():
-                sentence, nonce_data = prepare_sentence_nonces(row)
-                nonced_sentence, used_nonces = noncer.nonce_sentence(sentence, nonce_data)
+            for scene_idx, rows in df.loc[item_idx].groupby("scene"):
+                trial_sentences = []
+                for (_, verb), row in rows.iterrows():
+                    sentence, nonce_data = prepare_sentence_nonces(row)
+                    nonced_sentence, used_nonces = noncer.nonce_sentence(sentence, nonce_data)
+                    trial_sentences.append((verb, nonced_sentence, used_nonces))
 
-                idx = (item_idx,) + row_idx
-                item_trials.append((idx, nonced_sentence, used_nonces))
+                idx = (item_idx, scene_idx)
+                item_trials.append((idx, trial_sentences))
 
             items.append(item_trials)
 
