@@ -103,7 +103,7 @@ def prepare_sentence_nonces(item_row):
     return sentence, nonce_data
 
 
-def prepare_trial_sequences(df, items_per_sequence=2):
+def prepare_item_sequences(df, items_per_sequence=2):
     """
     Prepare as many sequences of verb pairs as possible without repeating
     verbs.
@@ -123,18 +123,21 @@ def prepare_trial_sequences(df, items_per_sequence=2):
         combs.append(item_comb)
 
     for item_comb in combs:
-        trials = []
+        items = []
         noncer = Noncer(nonce_df)
 
         for item_idx in item_comb:
+            item_trials = []
             for row_idx, row in df.loc[item_idx].iterrows():
                 sentence, nonce_data = prepare_sentence_nonces(row)
                 nonced_sentence, used_nonces = noncer.nonce_sentence(sentence, nonce_data)
 
                 idx = (item_idx,) + row_idx
-                trials.append((idx, nonced_sentence, used_nonces))
+                item_trials.append((idx, nonced_sentence, used_nonces))
 
-        yield trials
+            items.append(item_trials)
+
+        yield items
 
 
 def get_scene_image_url(scene_id):

@@ -10,7 +10,7 @@ from flask import Blueprint, jsonify, send_file
 from psiturk.psiturk_config import PsiturkConfig
 from psiturk.user_utils import PsiTurkAuthorization
 
-from . import materials
+import materials
 
 
 config = PsiturkConfig()
@@ -23,42 +23,50 @@ custom_code = Blueprint("custom_code", __name__, template_folder="templates", st
 
 SCENE_IMAGES_PATH = "/static/scenes"
 
-# prepare trial sequences.
-ITEMS_PER_SEQUENCE = 2
-TRIAL_SEQUENCES = [
-    prepare_trial_seq_dict(trial_seq)
-    for trial_seq in materials.prepare_trial_sequences(materials.materials_df, items_per_sequence=ITEMS_PER_SEQUENCE)
-]
+def prepare_item_seq_dict(item_seq):
+    ret = {"items": []}
+    for item in item_seq:
+        item_ret = []
+        for trial in item:
+            (item_idx, scene, verb), sentence, used_nonces = trial
 
+            # scene_image_path = "%s/%i.jpg" % (SCENE_IMAGES_PATH, scene)
+            # if not Path(scene_image_path).exists():
+            #     L.error("Scene image %i at %s does not exist. Downloading.",
+            #             scene, scene_image_path)
+            scene_image_url = materials.get_scene_image_url(scene)
 
-def prepare_trial_seq_dict(trial_seq):
-    ret = {"trials": []}
-    for trial in trial_seqs:
-        (item_idx, scene, verb), sentence, used_nonces = trial
+            item_ret.append({
+                "item_idx": item_idx,
+                "scene": scene,
+                "verb": verb,
 
-        # scene_image_path = "%s/%i.jpg" % (SCENE_IMAGES_PATH, scene)
-        # if not Path(scene_image_path).exists():
-        #     L.error("Scene image %i at %s does not exist. Downloading.",
-        #             scene, scene_image_path)
-        scene_image_url = materials.get_scene_image_url(scene)
+                "scene_image_url": scene_image_url,
 
-        ret["trials"].append({
-            "item_idx": item_idx,
-            "scene": scene,
-            "verb": verb,
+                "sentence": sentence,
+                "used_nonces": used_nonces,
+            })
 
-            "scene_image_url": scene_image_url,
-
-            "sentence": sentence,
-            "used_nonces": used_nonces,
-        })
+        ret["items"].append(item_ret)
 
     return ret
 
+# prepare trial sequences.
+ITEMS_PER_SEQUENCE = 2
+ITEM_SEQUENCES = [
+    prepare_item_seq_dict(item_seq)
+    for item_seq in materials.prepare_item_sequences(materials.materials_df, items_per_sequence=ITEMS_PER_SEQUENCE)
+]
 
-@custom_code.route("/trial_seq", methods=["GET"])
-def get_trial_seq():
+###############
+# custom routes
+
+@custom_code.route("/item_seq", methods=["GET"])
+def get_item_seq():
     # TODO maybe not random sample, but ensure balanced sample
-    trial_seq = random.choice(TRIAL_SEQUENCES)
-    return jsonify(trial_seq)
+    item_seq = random.choice(ITEM_SEQUENCES)
+
+    # TODO shuffle trials?
+
+    return jsonify(item_seq)
 
