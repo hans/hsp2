@@ -94,7 +94,7 @@ def prepare_sentence_nonces(item_row):
       item_row:
       which: Which sentence (1 or 2, integer).
     """
-    left, gerund, right = item_row[["sentence_left", "gerund", "sentence_right"]]
+    left, gerund, right = item_row[["sentence_left", "verb_form", "sentence_right"]]
     left, right = left.strip().split(" "), right.strip().split(" ")
     if left == [""]: left = []
     if right == [""]: right = []
@@ -111,7 +111,7 @@ def prepare_sentence_nonces(item_row):
                    if not function_re.match(word)]
     nonce_data = [(idx, sentence_tags[idx]) for idx in nonce_idxs]
     # Add nonce marker for root verb.
-    nonce_data += [(len(left), "VBG")]
+    nonce_data += [(len(left), item_row.verb_form_tag)]
 
     return sentence, nonce_data
 
@@ -153,7 +153,7 @@ def prepare_item_sequences(df, items_per_sequence=2):
 
                     nonced_sentence, used_nonces = noncer.nonce_sentence(sentence, nonce_data)
 
-                    trial_sentences.append((verb, noncer.nonce(row.gerund, "VBG"),
+                    trial_sentences.append((verb, noncer.nonce(row.verb_form, row.verb_form_tag),
                                             nonced_sentence, used_nonces))
                     item_verbs.add(verb)
 

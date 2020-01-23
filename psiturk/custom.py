@@ -2,8 +2,6 @@ from pathlib2 import Path
 import random
 
 import logging
-logging.basicConfig(level=logging.DEBUG)
-L = logging.getLogger(__name__)
 
 from flask import Blueprint, jsonify, send_file
 
@@ -11,6 +9,9 @@ from psiturk.psiturk_config import PsiturkConfig
 from psiturk.user_utils import PsiTurkAuthorization
 
 import materials
+
+logging.basicConfig(level=logging.DEBUG)
+L = logging.getLogger(__name__)
 
 
 config = PsiturkConfig()
