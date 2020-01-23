@@ -33,6 +33,7 @@ class Noncer(object):
     def __init__(self, nonce_df):
         self.nonce_df = nonce_df
 
+        self.nonce_map = {}
         self.used_nonces = Counter()
         self._pull_nonces()
 
@@ -44,16 +45,24 @@ class Noncer(object):
     def from_nonce_csv(cls, nonce_csv):
         return cls(pd.read_csv(nonce_csv, encoding="utf-8", index_col=0))
 
-    def nonce(self, word, tag=None):
+    def get_nonce_row(self, word):
+        if word in self.nonce_map:
+            return self.nonce_df.loc[self.nonce_map[word]]
+
         if len(self.available_nonces) == 0:
             L.warn("Ran out of unique nonces. Re-using past nonces.")
             self._pull_nonces()
 
         stem = self.available_nonces.pop()
+        self.nonce_map[word] = stem
         self.used_nonces[stem] += 1
 
         row = self.nonce_df.loc[stem]
+        return row
 
+    def nonce(self, word, tag=None):
+        row = self.get_nonce_row(word)
+        stem = row.name
         if "form_%s" % tag in row.index:
             ret = row["form_%s" % tag]
         else:
@@ -128,17 +137,26 @@ def prepare_item_sequences(df, items_per_sequence=2):
 
         for item_idx in item_comb:
             item_trials = []
+            item_verbs = set()
             for scene_idx, rows in df.loc[item_idx].groupby("scene"):
                 trial_sentences = []
                 for (_, verb), row in rows.iterrows():
                     sentence, nonce_data = prepare_sentence_nonces(row)
                     nonced_sentence, used_nonces = noncer.nonce_sentence(sentence, nonce_data)
+
                     trial_sentences.append((verb, nonced_sentence, used_nonces))
+                    item_verbs.add(verb)
 
                 idx = (item_idx, scene_idx)
                 item_trials.append((idx, trial_sentences))
 
-            items.append(item_trials)
+            # Prepare verb description including nonce data.
+            item_verbs_with_nonces = []
+            for verb in item_verbs:
+                row = noncer.get_nonce_row(verb)
+                item_verbs_with_nonces.append((verb, row.name, row.form_VBG))
+
+            items.append((item_verbs_with_nonces, item_trials))
 
         yield items
 

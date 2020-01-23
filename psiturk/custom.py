@@ -24,10 +24,15 @@ custom_code = Blueprint("custom_code", __name__, template_folder="templates", st
 SCENE_IMAGES_PATH = "/static/scenes"
 
 def prepare_item_seq_dict(item_seq):
+    # TODO we shouldn't have duplicate scenes in the sequence .. what's wrong
+    # TODO consistent nonceing of verbs across trials
+
     ret = {"items": []}
-    for item in item_seq:
-        item_ret = []
-        for trial in item:
+    for item_verbs, item_trials in item_seq:
+        trials = []
+
+        # Pre-process trial data
+        for trial in item_trials:
             (item_idx, scene), sentence_data = trial
 
             # scene_image_path = "%s/%i.jpg" % (SCENE_IMAGES_PATH, scene)
@@ -36,7 +41,7 @@ def prepare_item_seq_dict(item_seq):
             #             scene, scene_image_path)
             scene_image_url = materials.get_scene_image_url(scene)
 
-            item_ret.append({
+            trials.append({
                 "item_idx": item_idx,
                 "scene": scene,
                 "scene_image_url": scene_image_url,
@@ -44,10 +49,10 @@ def prepare_item_seq_dict(item_seq):
                 "sentence_data": sentence_data,
             })
 
-        ret["items"].append(item_ret)
-
-    from pprint import pprint
-    pprint(ret)
+        ret["items"].append({
+            "verbs": item_verbs,
+            "trials": trials
+        })
 
     return ret
 
@@ -66,6 +71,7 @@ def get_item_seq():
     # TODO maybe not random sample, but ensure balanced sample
     item_seq = random.choice(ITEM_SEQUENCES)
 
+    # TODO assign conditions
     # TODO shuffle trials?
 
     return jsonify(item_seq)
