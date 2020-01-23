@@ -1,5 +1,7 @@
+from argparse import ArgumentParser
 from collections import defaultdict, Counter
 import itertools
+import json
 import logging
 from pathlib2 import Path
 import random
@@ -9,6 +11,7 @@ import requests
 import spacy
 import pandas as pd
 
+logging.basicConfig(level=logging.INFO)
 L = logging.getLogger(__name__)
 
 # load spacy model
@@ -188,3 +191,52 @@ def memoize(f):
 def get_scene_image_url(scene_id):
     metadata = requests.get("https://visualgenome.org/api/v0/images/%i?format=json" % scene_id).json()
     return metadata["url"]
+
+
+def prepare_item_seq_dict(item_seq):
+    ret = {"items": []}
+    for item_verbs, item_trials in item_seq:
+        trials = []
+
+        # Pre-process trial data
+        for trial in item_trials:
+            (item_idx, scene), sentence_data = trial
+
+            # scene_image_path = "%s/%i.jpg" % (SCENE_IMAGES_PATH, scene)
+            # if not Path(scene_image_path).exists():
+            #     L.error("Scene image %i at %s does not exist. Downloading.",
+            #             scene, scene_image_path)
+            scene_image_url = get_scene_image_url(scene)
+
+            trials.append({
+                "item_idx": item_idx,
+                "scene": scene,
+                "scene_image_url": scene_image_url,
+
+                "sentence_data": sentence_data,
+            })
+
+        ret["items"].append({
+            "verbs": item_verbs,
+            "trials": trials
+        })
+
+    return ret
+
+
+def main(args):
+    item_seqs = prepare_item_sequences(materials_df, items_per_sequence=args.items_per_sequence)
+    item_seqs = [prepare_item_seq_dict(item_seq) for item_seq in item_seqs]
+
+    print("Saving to ", args.out_path)
+    with args.out_path.open("wb") as out_f:
+        json.dump(item_seqs, out_f)
+
+
+if __name__ == "__main__":
+    # Prepare item sequence and save to .json
+    p = ArgumentParser()
+    p.add_argument("-o", "--out_path", type=Path, default=Path("/materials/all_items.json"))
+    p.add_argument("-i", "--items_per_sequence", type=int, default=3)
+
+    main(p.parse_args())
