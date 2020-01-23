@@ -70,9 +70,9 @@ ITEM_SEQUENCES = [
 def get_item_seq():
     # TODO maybe not random sample, but ensure balanced sample
     item_seq = random.choice(ITEM_SEQUENCES)
-
-    # TODO assign conditions
-    # TODO shuffle trials?
-
     return jsonify(item_seq)
 
+
+if __name__ == "__main__":
+    from pprint import pprint
+    pprint(ITEM_SEQUENCES)

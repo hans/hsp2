@@ -19,7 +19,9 @@ MATERIALS_PATH = Path("/materials")
 ITEMS_PATH = MATERIALS_PATH / "items.csv"
 NONCE_PATH = MATERIALS_PATH / "nonces.csv"
 
-materials_df = pd.read_csv(ITEMS_PATH, encoding="utf-8", index_col=["item_idx", "scene", "verb"])
+materials_df = pd.read_csv(ITEMS_PATH, encoding="utf-8",
+                           index_col=["item_idx", "scene", "verb"],
+                           keep_default_na=False)
 nonce_df = pd.read_csv(NONCE_PATH, encoding="utf-8", index_col=["stem"])
 
 # regex for matching function words in sentences specified in materials
@@ -94,6 +96,8 @@ def prepare_sentence_nonces(item_row):
     """
     left, gerund, right = item_row[["sentence_left", "gerund", "sentence_right"]]
     left, right = left.strip().split(" "), right.strip().split(" ")
+    if left == [""]: left = []
+    if right == [""]: right = []
 
     # Parse sentence and get morphological information.
     sentence = " ".join(left + [gerund] + right)
@@ -141,7 +145,12 @@ def prepare_item_sequences(df, items_per_sequence=2):
             for scene_idx, rows in df.loc[item_idx].groupby("scene"):
                 trial_sentences = []
                 for (_, verb), row in rows.iterrows():
-                    sentence, nonce_data = prepare_sentence_nonces(row)
+                    try:
+                        sentence, nonce_data = prepare_sentence_nonces(row)
+                    except:
+                        L.error("Failed to prepare sentence row: %s", row)
+                        raise
+
                     nonced_sentence, used_nonces = noncer.nonce_sentence(sentence, nonce_data)
 
                     trial_sentences.append((verb, noncer.nonce(row.gerund, "VBG"),
@@ -162,6 +171,20 @@ def prepare_item_sequences(df, items_per_sequence=2):
         yield items
 
 
+def memoize(f):
+    """ Memoization decorator for functions taking one or more arguments. """
+    class memodict(dict):
+        def __init__(self, f):
+            self.f = f
+        def __call__(self, *args):
+            return self[args]
+        def __missing__(self, key):
+            ret = self[key] = self.f(*key)
+            return ret
+    return memodict(f)
+
+
+@memoize
 def get_scene_image_url(scene_id):
     metadata = requests.get("https://visualgenome.org/api/v0/images/%i?format=json" % scene_id).json()
     return metadata["url"]
