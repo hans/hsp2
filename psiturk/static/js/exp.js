@@ -38,16 +38,6 @@ var demo_block = {
   ]
 };
 
-var iti_block = {
-  type: "html-keyboard-response",
-  stimulus: "<div style='font-size: 20pt;'>Please wait&hellip;</div>",
-  choices: jsPsych.NO_KEYS,
-  trial_duration: 1000,
-  on_finish: function() {
-    psiturk.startTask();
-  },
-};
-
 var comments_block = {
   type: "survey-text",
   // TODO
@@ -58,14 +48,19 @@ var comments_block = {
 
 var R = jsPsych.randomization;
 
+var CONDITIONS = ["verb", "syntax"];
+
 $.getJSON("/item_seq", {uniqueId: uniqueId}, function(item_seq) {
   setup_experiment(item_seq)
 });
 
 var setup_experiment = function(data) {
   var preload_images = [];
+  console.log(data)
 
   var item_blocks = $.map(data["items"], function(item) {
+    var condition = R.sampleWithReplacement(CONDITIONS, 1)[0];
+
     var all_real_verbs = $.map(item["verbs"], v => v[0])
     var all_nonce_verbs = $.map(item["verbs"], v => v[1])
 
@@ -78,20 +73,37 @@ var setup_experiment = function(data) {
           "<p class='zarf-verb'>" + verb + "</p>").join("")
         + "<p>We will hear Zarf speakers use these verbs to describe things they see.</p>"
         + "<p>Next, we'll ask you to guess their translations in English.</p>"
-      ]
+      ],
+      data: {condition: condition}
     }
 
     // sentence pair -- scene training blocks
     var training_blocks = $.map(R.shuffle(item["trials"]), function(trial) {
       preload_images.push(trial.scene_image_url);
 
-      var prompt = "<p class='quiet-instructions'>Read the below and then press any key to proceed.</p><p>The Zarf speaker saw the following scene and described it with the sentences:</p>";
-      var sentences = $.map(trial["sentence_data"], function(sentence_data) {
-        // TODO verb condition
-        return "<p class='zarf-sentence' data-verb='" + sentence_data[0] + "'>" +
-          sentence_data[1] + "</p>"
-      })
-      prompt += sentences.join("");
+      var prompt = "<p class='quiet-instructions'>Read the below and then press any key to proceed.</p>";
+      trial_sentences = R.shuffle(trial["sentence_data"])
+      if (condition == "syntax") {
+        prompt += "<p>The Zarf speaker saw the following scene and described it with the sentences:</p>";
+        var sentences = $.map(trial_sentences, function(sentence_data) {
+          var nonce_gerund = sentence_data[1][0];
+          // Highlight the gerund in the sentence.
+          console.log(nonce_gerund, sentence_data[2])
+          var sentence_html = sentence_data[2].replace(nonce_gerund, "<strong>" + nonce_gerund + "</strong>");
+          return "<p class='zarf-sentence' data-verb='" + sentence_data[0] + "'>" +
+            sentence_html + "</p>";
+        })
+        prompt += sentences.join("");
+
+      } else if (condition == "verb") {
+        prompt += "<p>The Zarf speaker saw the following scene and provided a sentence, but <strong>we've lost everything but the verb they used.</strong> Try to guess what these words mean based on the scene.</p>";
+        var sentences = $.map(trial_sentences, function(sentence_data) {
+          var nonce_gerund = sentence_data[1][0];
+          return "<p class='zarf-sentence' data-verb='" + sentence_data[0] + "'>" +
+            "<span class='noise'>#####</span> <strong>" + nonce_gerund + "</strong> <span class='noise'>#####</span> !</p>";
+        })
+        prompt += sentences.join("")
+      }
 
       var image_html = "<img class='stim-image' src='" + trial.scene_image_url + "' style='max-height: 300px;' />"
       assert(all_nonce_verbs.length == 2);
@@ -103,31 +115,41 @@ var setup_experiment = function(data) {
         stimulus: stimulus,
         choices: jsPsych.ALL_KEYS,
         post_trial_gap: 1000,
+        data: {
+          condition: condition
+        }
       };
       return scene_block;
     });
 
-    var test_questions = $.map(item["verbs"], function(verb) {
+    var test_verb_sequence = R.shuffle(item["verbs"]);
+    var test_questions = $.map(test_verb_sequence, function(verb) {
       var verb_real = verb[0];
       var verb_nonce = verb[1];
       return {
         prompt: "What is the most likely meaning of the word <strong>" + verb_nonce + "</strong>?",
-        options: all_real_verbs,
+        options: R.shuffle(all_real_verbs),
         required: true,
         name: "meaning/" + verb_real,
       }
     });
 
-    console.log(test_questions)
-
     var test_block = {
       type: "survey-multi-choice",
       preamble: "Our linguists think the verbs <strong>" + all_nonce_verbs[0] + "</strong> and <strong>" + all_nonce_verbs[1] + "</strong> might have the following English translations, but aren't sure which Zarf word maps to which English word. Please provide your best guess about the correct mapping.",
       questions: test_questions,
-      randomize_question_order: true,
+      data: {
+        condition: condition,
+        verb_sequence: test_verb_sequence
+      },
     }
 
-    return [item_intro_block].concat(training_blocks).concat([test_block])
+    var item_chunk = {
+      chunk_type: "linear",
+      timeline: [item_intro_block].concat(training_blocks).concat([test_block]),
+      data: {foo: "test"},
+    }
+    return item_chunk;
   });;
 
   /* define experiment structure */
@@ -152,6 +174,7 @@ var setup_experiment = function(data) {
     show_progress_bar: true,
     preload_images: preload_images,
 
+               // TODO maybe call startTask?
     on_finish: function() {
       psiturk.saveData({
         success: function() { psiturk.completeHIT(); },

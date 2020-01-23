@@ -144,7 +144,8 @@ def prepare_item_sequences(df, items_per_sequence=2):
                     sentence, nonce_data = prepare_sentence_nonces(row)
                     nonced_sentence, used_nonces = noncer.nonce_sentence(sentence, nonce_data)
 
-                    trial_sentences.append((verb, nonced_sentence, used_nonces))
+                    trial_sentences.append((verb, noncer.nonce(row.gerund, "VBG"),
+                                            nonced_sentence, used_nonces))
                     item_verbs.add(verb)
 
                 idx = (item_idx, scene_idx)
