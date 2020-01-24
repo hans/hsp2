@@ -1,8 +1,6 @@
-FROM cpllab/psiturk
+FROM adamliter/psiturk:latest
 
-RUN pip install pandas scipy matplotlib seaborn
-RUN pip install pathlib2
-RUN pip install spacy
-RUN python -m spacy download en
+RUN pip3 install pandas scipy matplotlib seaborn spacy
+RUN python3 -m spacy download en
 
 COPY materials /materials

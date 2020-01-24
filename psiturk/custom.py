@@ -1,5 +1,5 @@
 import json
-from pathlib2 import Path
+from pathlib import Path
 import random
 
 import logging
@@ -22,7 +22,7 @@ custom_code = Blueprint("custom_code", __name__, template_folder="templates", st
 
 
 item_sequences_f = Path("/materials/all_items.json")
-with item_sequences_f.open("rb") as items_f:
+with item_sequences_f.open("r") as items_f:
     ITEM_SEQUENCES = json.load(items_f)
 
 

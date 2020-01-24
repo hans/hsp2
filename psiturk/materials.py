@@ -3,7 +3,7 @@ from collections import defaultdict, Counter
 import itertools
 import json
 import logging
-from pathlib2 import Path
+from pathlib import Path
 import random
 import re
 import requests
@@ -199,6 +199,7 @@ def prepare_item_sequences(df, items_per_sequence=2):
                         "verb_stem": verb,
                         "verb_form": row.verb_form,
                         "verb_nonce": verb_nonce,
+                        "verb_nonce_stem": item_verb_nonces[verb].form_stem,
                         "sentence": sentence,
                         "sentence_nonce": nonced_sentence,
                         "used_nonces": used_nonces
@@ -260,7 +261,7 @@ def main(args):
     item_seqs = [prepare_item_seq_dict(item_seq) for item_seq in item_seqs]
 
     print("Saving to ", args.out_path)
-    with args.out_path.open("wb") as out_f:
+    with args.out_path.open("w") as out_f:
         json.dump(item_seqs, out_f)
 
 
