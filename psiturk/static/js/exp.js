@@ -127,7 +127,7 @@ var setup_experiment = function(data) {
         type: "html-keyboard-response",
         stimulus: stimulus,
         choices: jsPsych.ALL_KEYS,
-        post_trial_gap: 1000,
+        post_trial_gap: 250,
         data: {
           condition: condition,
           item_idx: trial.item_idx,
