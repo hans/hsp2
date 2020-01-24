@@ -55,7 +55,7 @@ item_idx,scene,verb,frame,sentence_left,verb_form,verb_form_tag,sentence_right,C
 15,2414571,jump,nsubj _ prep:for,[the] boy [is],jumping,VBG,[for] [the] frisbee,
 15,2372664,play,nsubj _ dobj prep:at,[the] children [are],playing,VBG,soccer [at] [the] park,
 15,2414571,play,nsubj _ dobj prep:in,[the] boys [are],playing,VBG,frisbee [in] [the] park,
-16,2350031,sit,nsubj _ prep:on prep:at,[the] men [are],sitting,VBG,[on] chairs [at] [a] conference,
+16,2350031,sit,nsubj _ prep:on prep:at,[the] men [are],sitting,VBG,[on] [a] couch [at] [a] conference,
 16,2362090,sit,nsubj _ prep:on,[the] cats [are],sitting,VBG,[on] [the] windowsill,
 16,2350031,look,nsubj _ prep:into,[the] men [are],looking,VBG,[into] [an] issue,
 16,2362090,look,nsubj _ prt:out dobj,[the] cats [are],looking,VBG,[out] [the] window,
