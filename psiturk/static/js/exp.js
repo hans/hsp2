@@ -175,9 +175,8 @@ var setup_experiment = function(data) {
 
   // DEV
   experiment_blocks.push(instructions_block);
-  // experiment_blocks.push(age_block);
-  // experiment_blocks.push(demo_block);
-  // experiment_blocks.push(iti_block);
+  experiment_blocks.push(age_block);
+  experiment_blocks.push(demo_block);
 
   experiment_blocks = experiment_blocks.concat(item_blocks)
 
