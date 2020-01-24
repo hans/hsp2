@@ -10,6 +10,7 @@ import requests
 
 import spacy
 import pandas as pd
+from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO)
 L = logging.getLogger(__name__)
@@ -164,7 +165,7 @@ def prepare_item_sequences(df, items_per_sequence=2):
 
         combs.append(item_comb)
 
-    for item_comb in combs:
+    for item_comb in tqdm(combs):
         items = []
         noncer = Noncer(nonce_df)
 
