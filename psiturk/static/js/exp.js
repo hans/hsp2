@@ -78,30 +78,33 @@ var setup_experiment = function(data) {
     }
 
     // sentence pair -- scene training blocks
+    var all_sentence_htmls = [];
     var training_blocks = $.map(R.shuffle(item["trials"]), function(trial) {
       preload_images.push(trial.scene_image_url);
 
       var prompt = "<p class='quiet-instructions'>Read the below and then press any key to proceed.</p>";
       var trial_sentences = R.shuffle(trial["sentence_data"])
 
+      var sentence_htmls = [];
       if (condition == "syntax") {
         prompt += "<p>The Zarf speaker saw the following scene and described it with the sentences:</p>";
-        var sentences = $.map(trial_sentences, function(sentence_data) {
+        sentence_htmls = $.map(trial_sentences, function(sentence_data) {
           var sentence_html = sentence_data.sentence_nonce.replace(
             sentence_data.verb_nonce, "<strong>" + sentence_data.verb_nonce + "</strong>");
           return "<p class='zarf-sentence' data-verb='" + sentence_data.verb_stem + "'>" +
             sentence_html + "</p>";
         })
-        prompt += sentences.join("");
 
       } else if (condition == "verb") {
         prompt += "<p>The Zarf speaker saw the following scene and provided a sentence, but <strong>we've lost everything but the verb they used.</strong> Try to guess what these words mean based on the scene.</p>";
-        var sentences = $.map(trial_sentences, function(sentence_data) {
+        sentence_htmls = $.map(trial_sentences, function(sentence_data) {
           return "<p class='zarf-sentence' data-verb='" + sentence_data.verb_stem + "'>" +
             "<span class='noise'>#####</span> <strong>" + sentence_data.verb_nonce + "</strong> <span class='noise'>#####</span> !</p>";
         })
-        prompt += sentences.join("")
       }
+
+      prompt += sentence_htmls.join("");
+      all_sentence_htmls = all_sentence_htmls.concat(sentence_htmls);
 
       var image_html = "<img class='stim-image' src='" + trial.scene_image_url + "' style='max-height: 300px;' />"
       assert(all_nonce_verbs.length == 2);
@@ -134,7 +137,7 @@ var setup_experiment = function(data) {
 
     var test_block = {
       type: "survey-multi-choice",
-      preamble: "Our linguists think the verbs <strong>" + all_nonce_verbs[0] + "</strong> and <strong>" + all_nonce_verbs[1] + "</strong> might have the following English translations, but aren't sure which Zarf word maps to which English word. Please provide your best guess about the correct mapping.",
+      preamble: "<p>You saw the following sentences:</p>" + all_sentence_htmls.join("") + "<p>Our linguists think the verbs <strong>" + all_nonce_verbs[0] + "</strong> and <strong>" + all_nonce_verbs[1] + "</strong> might have the following English translations, but aren't sure exactly which Zarf word maps to which English word. Please provide your best guess about the correct mapping.</p>",
       questions: test_questions,
       data: {
         condition: condition,
@@ -172,7 +175,6 @@ var setup_experiment = function(data) {
     show_progress_bar: true,
     preload_images: preload_images,
 
-               // TODO maybe call startTask?
     on_finish: function() {
       psiturk.saveData({
         success: function() { psiturk.completeHIT(); },
