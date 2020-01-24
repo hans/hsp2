@@ -1,4 +1,5 @@
 import json
+from pathlib2 import Path
 import random
 
 import logging
@@ -20,6 +21,7 @@ myauth = PsiTurkAuthorization(config) # if you want to add a password protected 
 custom_code = Blueprint("custom_code", __name__, template_folder="templates", static_folder="static")
 
 
+item_sequences_f = Path("/materials/all_items.json")
 with item_sequences_f.open("rb") as items_f:
     ITEM_SEQUENCES = json.load(items_f)
 

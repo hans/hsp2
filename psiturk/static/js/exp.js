@@ -61,8 +61,8 @@ var setup_experiment = function(data) {
   var item_blocks = $.map(data["items"], function(item) {
     var condition = R.sampleWithReplacement(CONDITIONS, 1)[0];
 
-    var all_real_verbs = $.map(item["verbs"], v => v[0])
-    var all_nonce_verbs = $.map(item["verbs"], v => v[1])
+    var all_real_verbs = $.map(item["verbs"], (forms, verb) => verb)
+    var all_nonce_verbs = $.map(item["verbs"], (forms, verb) => forms.form_stem)
 
     var item_intro_block = {
       type: "instructions",
@@ -82,15 +82,14 @@ var setup_experiment = function(data) {
       preload_images.push(trial.scene_image_url);
 
       var prompt = "<p class='quiet-instructions'>Read the below and then press any key to proceed.</p>";
-      trial_sentences = R.shuffle(trial["sentence_data"])
+      var trial_sentences = R.shuffle(trial["sentence_data"])
+
       if (condition == "syntax") {
         prompt += "<p>The Zarf speaker saw the following scene and described it with the sentences:</p>";
         var sentences = $.map(trial_sentences, function(sentence_data) {
-          var nonce_gerund = sentence_data[1][0];
-          // Highlight the gerund in the sentence.
-          console.log(nonce_gerund, sentence_data[2])
-          var sentence_html = sentence_data[2].replace(nonce_gerund, "<strong>" + nonce_gerund + "</strong>");
-          return "<p class='zarf-sentence' data-verb='" + sentence_data[0] + "'>" +
+          var sentence_html = sentence_data.sentence_nonce.replace(
+            sentence_data.verb_nonce, "<strong>" + sentence_data.verb_nonce + "</strong>");
+          return "<p class='zarf-sentence' data-verb='" + sentence_data.verb_stem + "'>" +
             sentence_html + "</p>";
         })
         prompt += sentences.join("");
@@ -98,9 +97,8 @@ var setup_experiment = function(data) {
       } else if (condition == "verb") {
         prompt += "<p>The Zarf speaker saw the following scene and provided a sentence, but <strong>we've lost everything but the verb they used.</strong> Try to guess what these words mean based on the scene.</p>";
         var sentences = $.map(trial_sentences, function(sentence_data) {
-          var nonce_gerund = sentence_data[1][0];
-          return "<p class='zarf-sentence' data-verb='" + sentence_data[0] + "'>" +
-            "<span class='noise'>#####</span> <strong>" + nonce_gerund + "</strong> <span class='noise'>#####</span> !</p>";
+          return "<p class='zarf-sentence' data-verb='" + sentence_data.verb_stem + "'>" +
+            "<span class='noise'>#####</span> <strong>" + sentence_data.verb_nonce + "</strong> <span class='noise'>#####</span> !</p>";
         })
         prompt += sentences.join("")
       }
@@ -122,15 +120,15 @@ var setup_experiment = function(data) {
       return scene_block;
     });
 
-    var test_verb_sequence = R.shuffle(item["verbs"]);
+    var test_verb_sequence = R.shuffle(Object.keys(item["verbs"]))
+    console.log(test_verb_sequence)
     var test_questions = $.map(test_verb_sequence, function(verb) {
-      var verb_real = verb[0];
-      var verb_nonce = verb[1];
+      var verb_nonce = item["verbs"][verb].form_stem;
       return {
         prompt: "What is the most likely meaning of the word <strong>" + verb_nonce + "</strong>?",
         options: R.shuffle(all_real_verbs),
         required: true,
-        name: "meaning/" + verb_real,
+        name: "meaning/" + verb,
       }
     });
 

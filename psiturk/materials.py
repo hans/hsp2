@@ -31,12 +31,26 @@ nonce_df = pd.read_csv(NONCE_PATH, encoding="utf-8", index_col=["stem"])
 function_re = re.compile(r"\[([^\]]+)\]")
 
 
+def memoize(f):
+    """ Memoization decorator for functions taking one or more arguments. """
+    class memodict(dict):
+        def __init__(self, f):
+            self.f = f
+        def __call__(self, *args):
+            return self[args]
+        def __missing__(self, key):
+            ret = self[key] = self.f(*key)
+            return ret
+    return memodict(f)
+
+
 class Noncer(object):
     """
     Stateful utility for nonce-ing sentences.
     """
     def __init__(self, nonce_df):
         self.nonce_df = nonce_df
+        self.nonce_df["form_stem"] = self.nonce_df.index
 
         self.nonce_map = {}
         self.used_nonces = Counter()
@@ -75,15 +89,27 @@ class Noncer(object):
 
         return ret, stem
 
-    def nonce_sentence(self, sentence, nonce_data):
+    def nonce_sentence(self, sentence, nonce_data, overrides=None):
+        if overrides is None:
+            overrides = {}
+
         sentence_tokens = sentence.strip().split(" ")
         sentence_nonces = []
         for idx, tag in nonce_data:
-            sentence_tokens[idx], used_nonce = self.nonce(sentence_tokens[idx], tag)
-            sentence_nonces.append(used_nonce)
+            if idx in overrides:
+                sentence_tokens[idx] = overrides[idx]
+            else:
+                sentence_tokens[idx], used_nonce = self.nonce(sentence_tokens[idx], tag)
+                sentence_nonces.append(used_nonce)
 
         sentence = " ".join(sentence_tokens)
         return sentence, sentence_nonces
+
+
+@memoize
+def parse(sentence):
+    with nlp.disable_pipes("ner"):
+        return nlp(sentence)
 
 
 def prepare_sentence_nonces(item_row):
@@ -95,17 +121,16 @@ def prepare_sentence_nonces(item_row):
 
     Args:
       item_row:
-      which: Which sentence (1 or 2, integer).
     """
-    left, gerund, right = item_row[["sentence_left", "verb_form", "sentence_right"]]
+    left, verb_form, right = item_row[["sentence_left", "verb_form", "sentence_right"]]
     left, right = left.strip().split(" "), right.strip().split(" ")
     if left == [""]: left = []
     if right == [""]: right = []
 
     # Parse sentence and get morphological information.
-    sentence = " ".join(left + [gerund] + right)
+    sentence = " ".join(left + [verb_form] + right)
     sentence = function_re.sub(r"\1", sentence)
-    parsed = nlp(sentence)
+    parsed = parse(sentence)
     sentence_tags = [t.tag_ for t in parsed]
 
     nonce_idxs = [idx for idx, word in enumerate(left)
@@ -114,9 +139,10 @@ def prepare_sentence_nonces(item_row):
                    if not function_re.match(word)]
     nonce_data = [(idx, sentence_tags[idx]) for idx in nonce_idxs]
     # Add nonce marker for root verb.
-    nonce_data += [(len(left), item_row.verb_form_tag)]
+    root_idx = len(left)
+    nonce_data += [(root_idx, item_row.verb_form_tag)]
 
-    return sentence, nonce_data
+    return sentence, nonce_data, root_idx
 
 
 def prepare_item_sequences(df, items_per_sequence=2):
@@ -144,47 +170,51 @@ def prepare_item_sequences(df, items_per_sequence=2):
 
         for item_idx in item_comb:
             item_trials = []
-            item_verbs = set()
+
+            # Map verb stem to nonce row
+            # This helps us bridge nonces across different rows using the same
+            # verb in different forms.
+            item_verb_nonces = {}
+
             for scene_idx, rows in df.loc[item_idx].groupby("scene"):
                 trial_sentences = []
                 for (_, verb), row in rows.iterrows():
                     try:
-                        sentence, nonce_data = prepare_sentence_nonces(row)
+                        sentence, nonce_data, root_idx = prepare_sentence_nonces(row)
                     except:
                         L.error("Failed to prepare sentence row: %s", row)
                         raise
 
-                    nonced_sentence, used_nonces = noncer.nonce_sentence(sentence, nonce_data)
+                    if verb not in item_verb_nonces:
+                        item_verb_nonces[verb] = noncer.get_nonce_row(verb)
 
-                    trial_sentences.append((verb, noncer.nonce(row.verb_form, row.verb_form_tag),
-                                            nonced_sentence, used_nonces))
-                    item_verbs.add(verb)
+                    verb_nonce = item_verb_nonces[verb]["form_%s" % row.verb_form_tag]
+
+                    nonced_sentence, used_nonces = noncer.nonce_sentence(
+                            sentence, nonce_data,
+                            overrides={root_idx: verb_nonce})
+
+                    trial_sentences.append({
+                        "verb_stem": verb,
+                        "verb_form": row.verb_form,
+                        "verb_nonce": verb_nonce,
+                        "sentence": sentence,
+                        "sentence_nonce": nonced_sentence,
+                        "used_nonces": used_nonces
+                    })
 
                 idx = (item_idx, scene_idx)
                 item_trials.append((idx, trial_sentences))
 
-            # Prepare verb description including nonce data.
-            item_verbs_with_nonces = []
-            for verb in item_verbs:
-                row = noncer.get_nonce_row(verb)
-                item_verbs_with_nonces.append((verb, row.name, row.form_VBG))
+            # Convert from dataframe rows to dicts.
+            item_verb_nonces = {
+                verb_stem: row.to_dict()
+                for verb_stem, row in item_verb_nonces.items()
+            }
 
-            items.append((item_verbs_with_nonces, item_trials))
+            items.append((item_verb_nonces, item_trials))
 
         yield items
-
-
-def memoize(f):
-    """ Memoization decorator for functions taking one or more arguments. """
-    class memodict(dict):
-        def __init__(self, f):
-            self.f = f
-        def __call__(self, *args):
-            return self[args]
-        def __missing__(self, key):
-            ret = self[key] = self.f(*key)
-            return ret
-    return memodict(f)
 
 
 @memoize
