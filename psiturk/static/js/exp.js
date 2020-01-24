@@ -6,6 +6,11 @@
 
 /* load psiturk */
 var psiturk = new PsiTurk(uniqueId, adServerLoc, mode);
+var R = jsPsych.randomization;
+
+var COMPENSATION = "$0.60";
+
+var CONDITIONS = ["verb", "syntax"];
 
 var instructions_block = {
   type: "instructions",
@@ -41,14 +46,10 @@ var demo_block = {
 var comments_block = {
   type: "survey-text",
   // TODO
-  preamble: "<p>Thanks for participating in our study. You earned the <strong>full performance bonus</strong> of $0.10, and will be compensated $0.30 in total.</p><p><strong>Click \"Finish\" to complete the experiment and receive compensation.</strong> If you have any comments, please let us know in the form below.</p>",
+  preamble: "<p>Thanks for participating in our study. You will be compensated " + COMPENSATION + " in total.</p><p><strong>Click \"Finish\" to complete the experiment and receive compensation.</strong> If you have any comments, please let us know in the form below.</p>",
   questions: [{prompt: "Do you have any comments to share with us?"}],
   button_label: "Finish",
 };
-
-var R = jsPsych.randomization;
-
-var CONDITIONS = ["verb", "syntax"];
 
 $.getJSON("/item_seq", {uniqueId: uniqueId}, function(item_seq) {
   setup_experiment(item_seq)
@@ -60,6 +61,7 @@ var setup_experiment = function(data) {
 
   var item_blocks = $.map(data["items"], function(item) {
     var condition = R.sampleWithReplacement(CONDITIONS, 1)[0];
+    var item_idx = null;
 
     var all_real_verbs = $.map(item["verbs"], (forms, verb) => verb)
     var all_nonce_verbs = $.map(item["verbs"], (forms, verb) => forms.form_stem)
@@ -80,17 +82,24 @@ var setup_experiment = function(data) {
     // sentence pair -- scene training blocks
     var all_sentence_htmls = [];
     var training_blocks = $.map(R.shuffle(item["trials"]), function(trial) {
+      item_idx = trial.item_idx;
       preload_images.push(trial.scene_image_url);
 
       var prompt = "<p class='quiet-instructions'>Read the below and then press any key to proceed.</p>";
       var trial_sentences = R.shuffle(trial["sentence_data"])
 
+      var trial_verbs = [];
+      var trial_nonce_verbs = [];
       var sentence_htmls = [];
       if (condition == "syntax") {
         prompt += "<p>The Zarf speaker saw the following scene and described it with the sentences:</p>";
         sentence_htmls = $.map(trial_sentences, function(sentence_data) {
           var sentence_html = sentence_data.sentence_nonce.replace(
             sentence_data.verb_nonce, "<strong>" + sentence_data.verb_nonce + "</strong>");
+
+          trial_verbs.push(sentence_data.verb_stem);
+          trial_nonce_verbs.push(sentence_data.verb_nonce_stem);
+
           return "<p class='zarf-sentence' data-verb='" + sentence_data.verb_stem + "'>" +
             sentence_html + "</p>";
         })
@@ -98,6 +107,9 @@ var setup_experiment = function(data) {
       } else if (condition == "verb") {
         prompt += "<p>The Zarf speaker saw the following scene and provided a sentence, but <strong>we've lost everything but the verb they used.</strong> Try to guess what these words mean based on the scene.</p>";
         sentence_htmls = $.map(trial_sentences, function(sentence_data) {
+          trial_verbs.push(sentence_data.verb_stem);
+          trial_nonce_verbs.push(sentence_data.verb_nonce_stem);
+
           return "<p class='zarf-sentence' data-verb='" + sentence_data.verb_stem + "'>" +
             "<span class='noise'>#####</span> <strong>" + sentence_data.verb_nonce + "</strong> <span class='noise'>#####</span> !</p>";
         })
@@ -117,7 +129,10 @@ var setup_experiment = function(data) {
         choices: jsPsych.ALL_KEYS,
         post_trial_gap: 1000,
         data: {
-          condition: condition
+          condition: condition,
+          item_idx: trial.item_idx,
+          verbs: trial_verbs,
+          nonce_verbs: trial_nonce_verbs,
         }
       };
       return scene_block;
@@ -141,14 +156,15 @@ var setup_experiment = function(data) {
       questions: test_questions,
       data: {
         condition: condition,
-        verb_sequence: test_verb_sequence
+        item_idx: item_idx,
+        verb_sequence: test_verb_sequence,
+        nonce_verb_sequence: $.map(test_verb_sequence, v => item.verbs[v].form_stem)
       },
     }
 
     var item_chunk = {
       chunk_type: "linear",
       timeline: [item_intro_block].concat(training_blocks).concat([test_block]),
-      data: {foo: "test"},
     }
     return item_chunk;
   });;
