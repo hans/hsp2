@@ -85,7 +85,7 @@ var setup_experiment = function(data) {
       item_idx = trial.item_idx;
       preload_images.push(trial.scene_image_url);
 
-      var prompt = "<p class='quiet-instructions'>Read the below and then press any key to proceed.</p>";
+      var prompt = "";
       var trial_sentences = R.shuffle(trial["sentence_data"])
 
       var trial_verbs = [];
@@ -124,9 +124,10 @@ var setup_experiment = function(data) {
       var stimulus = prompt + query + image_html;
 
       var scene_block = {
-        type: "html-keyboard-response",
+        type: "delayed-html-keyboard-response",
         stimulus: stimulus,
         choices: jsPsych.ALL_KEYS,
+        min_trial_duration: 4000,
         post_trial_gap: 250,
         data: {
           condition: condition,
