@@ -146,10 +146,9 @@ def prepare_sentence_nonces(item_row):
     return sentence, nonce_data, root_idx
 
 
-def prepare_item_sequences(df, items_per_sequence=2):
+def prepare_block_sequences(df, items_per_sequence=2):
     """
-    Prepare as many sequences of verb pairs as possible without repeating
-    verbs.
+    Prepare as many item blocks as possible without repeating items.
 
     Render sentences with novel nonce words for every single sentence.
     """
@@ -166,57 +165,88 @@ def prepare_item_sequences(df, items_per_sequence=2):
         combs.append(item_comb)
 
     for item_comb in tqdm(combs):
-        items = []
+        # Compute possible blocks per item.
+        blocks = defaultdict(list)
         noncer = Noncer(nonce_df)
+        nonce_verb_info = {}
 
         for item_idx in item_comb:
-            item_trials = []
+            item_rows = df.loc[item_idx]
+            for test_verb in set(item_rows.verb):
+                blocks, nonce_verb_info[test_verb] = prepare_blocks(item_rows, test_verb, noncer)
+                blocks[item_idx].append(blocks)
 
-            # Map verb stem to nonce row
-            # This helps us bridge nonces across different rows using the same
-            # verb in different forms.
-            item_verb_nonces = {}
+        # Convert from dataframe rows to dicts.
+        nonce_verb_info = {verb: row.to_dict() for verb, row in nonce_verb_info.items()}
 
-            for scene_idx, rows in df.loc[item_idx].groupby("scene"):
-                trial_sentences = []
-                for (_, verb), row in rows.iterrows():
-                    try:
-                        sentence, nonce_data, root_idx = prepare_sentence_nonces(row)
-                    except:
-                        L.error("Failed to prepare sentence row: %s", row)
-                        raise
+        # Now yield all possible block sequences.
+        for block_seq in itertools.product(*blocks):
+            yield block_seq, nonce_verb_info
 
-                    if verb not in item_verb_nonces:
-                        item_verb_nonces[verb] = noncer.get_nonce_row(verb)
 
-                    verb_nonce = item_verb_nonces[verb]["form_%s" % row.verb_form_tag]
+def prepare_blocks(item_rows, test_verb, noncer):
+    """
+    Compute all possible item blocks (sequences of scene--sentences) for the
+    given verb within the given item.
 
-                    nonced_sentence, used_nonces = noncer.nonce_sentence(
-                            sentence, nonce_data,
-                            overrides={root_idx: verb_nonce})
+    Returns:
+        blocks: List of sequences of scene--sentence
+            presentations, effectively all possible combinations of sentence
+            and scenes.
+        nonce_row: nonce information used to produce the nonced sentences
+    """
+    item_idx = item_rows.index[0]
 
-                    trial_sentences.append({
-                        "verb_stem": verb,
-                        "verb_form": row.verb_form,
-                        "verb_nonce": verb_nonce,
-                        "verb_nonce_stem": item_verb_nonces[verb].form_stem,
-                        "sentence": sentence,
-                        "sentence_nonce": nonced_sentence,
-                        "used_nonces": used_nonces
-                    })
+    block_sentences, nonce_info = prepare_block_sentences(item_rows, test_verb, noncer)
+    block_scenes = set(item_rows.scene)
 
-                idx = (item_idx, scene_idx)
-                item_trials.append((idx, trial_sentences))
+    blocks = []
+    for scene_order in itertools.permutations(block_scenes):
+        blocks.append((item_idx, zip(scene_order, block_sentences)))
 
-            # Convert from dataframe rows to dicts.
-            item_verb_nonces = {
-                verb_stem: row.to_dict()
-                for verb_stem, row in item_verb_nonces.items()
-            }
+    return blocks, nonce_info
 
-            items.append((item_verb_nonces, item_trials))
 
-        yield items
+def prepare_block_sentences(item_rows, test_verb, noncer):
+    """
+    Compute nonced sentence presentations for the given verb within the given
+    item.
+    """
+    block_sentences = []
+
+    # Maps verb stem to nonce row.
+    # This helps us bridge nonces across different sentences which might use
+    # the same verb in different forms.
+    verb_nonces = noncer.get_nonce_row(test_verb)
+
+    verb_rows = item_rows[item_rows.verb == test_verb]
+    for _, row in verb_rows.iterrows():
+        try:
+            sentence, nonce_data, root_idx = prepare_sentence_nonces(row)
+        except:
+            L.error("Failed to prepare sentence row: %s", row)
+            raise
+
+        # look up relevant nonce morphological form
+        verb_nonce = verb_nonces["form_%s" % row.verb_form_tag]
+
+        # Nonce the whole sentence, ensuring that the verb gets a certain form.
+        nonced_sentence, used_nonces = noncer.nonce_sentence(
+                sentence, nonce_data,
+                overrides={root_idx: verb_nonce})
+
+        block_sentences.append({
+            "verb_stem": verb,
+            "verb_form": row.verb_form,
+            "verb_nonce": verb_nonce,
+            "verb_nonce_stem": verb_nonces.form_stem,
+
+            "sentence": sentence,
+            "sentence_nonce": nonced_sentence,
+            "used_nonces": used_nonces,
+        })
+
+    return block_sentences, verb_nonces
 
 
 @memoize
