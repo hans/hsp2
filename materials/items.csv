@@ -7,8 +7,8 @@ item_idx,scene,verb,frame,sentence_left,verb_form,verb_form_tag,sentence_right,C
 2,2375857,arrive,nsubj _ prep:at,[the] train [is],arriving,VBG,[at] [the] station,
 2,2343305,walk,nsubj _ prep:on,[the] people [are],walking,VBG,[on] [the] platform,
 2,2375857,walk,nsubj _ prep:along,[the] man [is],walking,VBG,[along] [the] platform,
-3,2387058,clean,nsubjpass auxpass _,[the] oven [is] [being],cleaned,VBZ,,"Interesting case — ""clean"" often alternates into passive; ""wear"" rarely does"
-3,2414257,clean,nsubj _,[the] woman [is],cleaning,VBG,,
+3,2387058,clean,nsubjpass auxpass _ ,[the] oven [is] [being],cleaned,VBZ,,"Interesting case — ""clean"" often alternates into passive; ""wear"" rarely does"
+3,2414257,clean,nsubj _ ,[the] woman [is],cleaning,VBG,,
 3,2387058,wear,nsubj _ dobj,[the] man [is],wearing,VBG,[a] dress shirt,
 3,2414257,wear,nsubj _ dobj prep:in,[the] woman [is],wearing,VBG,jeans [in] [a] kitchen,
 4,2410944,sit,nsubj _ prep:on,[the] man [is],sitting,VBG,[on] [a] raft,
