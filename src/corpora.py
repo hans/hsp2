@@ -7,6 +7,9 @@ import itertools
 import pandas as pd
 from tqdm import tqdm
 
+import logging
+L = logging.getLogger(__name__)
+
 
 def get_cooccurrences_for(cooccurrences, verbs, freq_thresh=2):
     """
@@ -15,7 +18,7 @@ def get_cooccurrences_for(cooccurrences, verbs, freq_thresh=2):
     a dataframe view where each column has nonzero total occurrences for some
     verb.
     """
-    df = cooccurrences.loc[list(verbs)]
+    df = cooccurrences.reindex(list(verbs))
     drop_columns = df.columns[df.min(axis=0) < freq_thresh]
     return df.drop(columns=drop_columns)
 
