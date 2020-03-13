@@ -172,22 +172,25 @@ def prepare_block_sequences(df, items_per_sequence=2):
 
         for item_idx in item_comb:
             item_rows = df.loc[item_idx]
-            for test_verb in set(item_rows.verb):
-                blocks, nonce_verb_info[test_verb] = prepare_blocks(item_rows, test_verb, noncer)
-                blocks[item_idx].append(blocks)
+            for verb, verb_rows in item_rows.groupby("verb"):
+                # What is/are the alternative verb(s) for this verb in the item?
+                contrast_verbs = set(item_rows.index.get_level_values("verb")) - {verb}
+                item_blocks, nonce_verb_info[verb] = prepare_blocks(item_idx, verb_rows,
+                                                                    verb, contrast_verbs, noncer)
+                blocks[item_idx].extend(item_blocks)
 
         # Convert from dataframe rows to dicts.
         nonce_verb_info = {verb: row.to_dict() for verb, row in nonce_verb_info.items()}
 
         # Now yield all possible block sequences.
-        for block_seq in itertools.product(*blocks):
+        for block_seq in itertools.product(*blocks.values()):
             yield block_seq, nonce_verb_info
 
 
-def prepare_blocks(item_rows, test_verb, noncer):
+def prepare_blocks(item_idx, verb_rows, test_verb, contrast_verbs, noncer):
     """
     Compute all possible item blocks (sequences of scene--sentences) for the
-    given verb within the given item.
+    given `test_verb` with corresponding `verb_rows`.
 
     Returns:
         blocks: List of sequences of scene--sentence
@@ -195,19 +198,18 @@ def prepare_blocks(item_rows, test_verb, noncer):
             and scenes.
         nonce_row: nonce information used to produce the nonced sentences
     """
-    item_idx = item_rows.index[0]
-
-    block_sentences, nonce_info = prepare_block_sentences(item_rows, test_verb, noncer)
-    block_scenes = set(item_rows.scene)
+    block_sentences, nonce_info = prepare_block_sentences(verb_rows, test_verb, noncer)
+    block_scenes = set(verb_rows.index.get_level_values("scene"))
 
     blocks = []
     for scene_order in itertools.permutations(block_scenes):
-        blocks.append((item_idx, zip(scene_order, block_sentences)))
+        blocks.append((item_idx, test_verb, contrast_verbs,
+                       list(zip(scene_order, block_sentences))))
 
     return blocks, nonce_info
 
 
-def prepare_block_sentences(item_rows, test_verb, noncer):
+def prepare_block_sentences(verb_rows, test_verb, noncer):
     """
     Compute nonced sentence presentations for the given verb within the given
     item.
@@ -219,7 +221,6 @@ def prepare_block_sentences(item_rows, test_verb, noncer):
     # the same verb in different forms.
     verb_nonces = noncer.get_nonce_row(test_verb)
 
-    verb_rows = item_rows[item_rows.verb == test_verb]
     for _, row in verb_rows.iterrows():
         try:
             sentence, nonce_data, root_idx = prepare_sentence_nonces(row)
@@ -236,10 +237,14 @@ def prepare_block_sentences(item_rows, test_verb, noncer):
                 overrides={root_idx: verb_nonce})
 
         block_sentences.append({
-            "verb_stem": verb,
-            "verb_form": row.verb_form,
-            "verb_nonce": verb_nonce,
-            "verb_nonce_stem": verb_nonces.form_stem,
+            "verb": {
+                "stem": test_verb,
+                "form": row.verb_form,
+            },
+            "nonce_verb": {
+                "stem": verb_nonces.form_stem,
+                "form": verb_nonce,
+            },
 
             "sentence": sentence,
             "sentence_nonce": nonced_sentence,
@@ -255,14 +260,16 @@ def get_scene_image_url(scene_id):
     return metadata["url"]
 
 
-def prepare_item_seq_dict(item_seq):
-    ret = {"items": []}
-    for item_verbs, item_trials in item_seq:
-        trials = []
+def prepare_block_sequence_dict(block_seq):
+    ret = {"blocks": []}
+    blocks, nonce_info = block_seq
+    for block in blocks:
+        item_idx, test_verb, contrast_verbs, trials = block
+        processed_trials = []
 
         # Pre-process trial data
-        for trial in item_trials:
-            (item_idx, scene), sentence_data = trial
+        for trial in trials:
+            scene, sentence_data = trial
 
             # scene_image_path = "%s/%i.jpg" % (SCENE_IMAGES_PATH, scene)
             # if not Path(scene_image_path).exists():
@@ -270,29 +277,32 @@ def prepare_item_seq_dict(item_seq):
             #             scene, scene_image_path)
             scene_image_url = get_scene_image_url(scene)
 
-            trials.append({
+            processed_trials.append({
                 "item_idx": item_idx,
+                "verb": test_verb,
                 "scene": scene,
                 "scene_image_url": scene_image_url,
 
                 "sentence_data": sentence_data,
             })
 
-        ret["items"].append({
-            "verbs": item_verbs,
-            "trials": trials
+        ret["blocks"].append({
+            "item_idx": item_idx,
+            "verb": test_verb,
+            "contrast_verbs": sorted(contrast_verbs),
+            "trials": processed_trials,
         })
 
     return ret
 
 
 def main(args):
-    item_seqs = prepare_item_sequences(materials_df, items_per_sequence=args.items_per_sequence)
-    item_seqs = [prepare_item_seq_dict(item_seq) for item_seq in item_seqs]
+    block_seqs = prepare_block_sequences(materials_df, items_per_sequence=args.items_per_sequence)
+    block_seqs = [prepare_block_sequence_dict(block_seq) for block_seq in block_seqs]
 
     print("Saving to ", args.out_path)
     with args.out_path.open("w") as out_f:
-        json.dump(item_seqs, out_f)
+        json.dump(block_seqs, out_f)
 
 
 if __name__ == "__main__":
