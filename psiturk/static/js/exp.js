@@ -59,71 +59,60 @@ var setup_experiment = function(data) {
   var preload_images = [];
   console.log(data)
 
-  var item_blocks = $.map(data["items"], function(item) {
+  var blocks = $.map(data["blocks"], function(block) {
     var condition = R.sampleWithReplacement(CONDITIONS, 1)[0];
-    var item_idx = null;
 
-    var all_real_verbs = $.map(item["verbs"], (forms, verb) => verb)
-    var all_nonce_verbs = $.map(item["verbs"], (forms, verb) => forms.form_stem)
+    // TODO assert we only have one contrast verb
+    var all_real_verbs = [block.verb, block.contrast_verbs[0]];
 
     var item_intro_block = {
       type: "instructions",
       show_clickable_nav: true,
       pages: [
-        "<p>We are now going to study these Zarf verbs:</p>"
-        + $.map(all_nonce_verbs, verb =>
-          "<p class='zarf-verb'>" + verb + "</p>").join("")
-        + "<p>We will hear Zarf speakers use these verbs to describe things they see.</p>"
+        "<p>We are now going to study this Zarf verb:</p>"
+        + "<p class='zarf-verb'>" + block.nonce_verb + "</p>"
+        + "<p>We will hear Zarf speakers use this verb to describe things they see.</p>"
         + "<p>Next, we'll ask you to guess their translations in English.</p>"
       ],
-      data: {condition: condition}
+      data: {condition: condition, stage: "introduction"}
     }
 
-    // sentence pair -- scene training blocks
+    // sentence pair -- scene training trials
+    var all_sentences = [];
+    var all_scenes = [];
+
     var all_sentence_htmls = [];
-    var training_blocks = $.map(R.shuffle(item["trials"]), function(trial) {
-      item_idx = trial.item_idx;
+    var training_trials = $.map(R.shuffle(block["trials"]), function(trial) {
       preload_images.push(trial.scene_image_url);
 
       var prompt = "";
-      var trial_sentences = R.shuffle(trial["sentence_data"])
+      var sentence_html = null;
 
-      var trial_verbs = [];
-      var trial_nonce_verbs = [];
-      var sentence_htmls = [];
+      all_sentences.push(trial.sentence_data.sentence);
+      all_scenes.push(trial.scene);
+
       if (condition == "syntax") {
-        prompt += "<p>The Zarf speaker saw the following scene and described it with the sentences:</p>";
-        sentence_htmls = $.map(trial_sentences, function(sentence_data) {
-          var sentence_html = sentence_data.sentence_nonce.replace(
-            sentence_data.verb_nonce, "<strong>" + sentence_data.verb_nonce + "</strong>");
-
-          trial_verbs.push(sentence_data.verb_stem);
-          trial_nonce_verbs.push(sentence_data.verb_nonce_stem);
-
-          return "<p class='zarf-sentence' data-verb='" + sentence_data.verb_stem + "'>" +
-            sentence_html + "</p>";
-        })
-
+        prompt += "<p>The Zarf speaker saw the following scene and described it with the sentence:</p>";
+        sentence_html = "<p class='zarf-sentence' data-verb='" + trial.sentence_data.verb.stem + "'>" +
+          trial.sentence_data.sentence_nonce.replace(
+            trial.sentence_data.nonce_verb.form,
+            "<strong>" + trial.sentence_data.nonce_verb.form + "</strong>") +
+          "</p>";
       } else if (condition == "verb") {
         prompt += "<p>The Zarf speaker saw the following scene and provided a sentence, but <strong>we've lost everything but the verb they used.</strong> Try to guess what these words mean based on the scene.</p>";
-        sentence_htmls = $.map(trial_sentences, function(sentence_data) {
-          trial_verbs.push(sentence_data.verb_stem);
-          trial_nonce_verbs.push(sentence_data.verb_nonce_stem);
 
-          return "<p class='zarf-sentence' data-verb='" + sentence_data.verb_stem + "'>" +
-            "<span class='noise'>#####</span> <strong>" + sentence_data.verb_nonce + "</strong> <span class='noise'>#####</span> !</p>";
-        })
+        sentence_html = "<p class='zarf-sentence' data-verb='" + trial.sentence_data.verb.stem + "'>" +
+          "<span class='noise'>#####</span> <strong>" + trial.sentence_data.nonce_verb.form + "</strong> <span class='noise'>#####</span> !</p>";
       }
 
-      prompt += sentence_htmls.join("");
-      all_sentence_htmls = all_sentence_htmls.concat(sentence_htmls);
+      prompt += sentence_html;
+      all_sentence_htmls.push(sentence_html);
 
       var image_html = "<img class='stim-image' src='" + trial.scene_image_url + "' style='max-height: 300px;' />"
-      assert(all_nonce_verbs.length == 2);
-      var query = "<p>What might <strong>" + all_nonce_verbs[0] + "</strong> and <strong>" + all_nonce_verbs[1] + "</strong> mean?</p>"
+      var query = "<p>What might <strong>" + trial.sentence_data.nonce_verb.form + "</strong> mean?</p>"
       var stimulus = prompt + query + image_html;
 
-      var scene_block = {
+      var scene_trial = {
         type: "delayed-html-keyboard-response",
         stimulus: stimulus,
         choices: jsPsych.ALL_KEYS,
@@ -131,41 +120,37 @@ var setup_experiment = function(data) {
         post_trial_gap: 250,
         data: {
           condition: condition,
-          item_idx: trial.item_idx,
-          verbs: trial_verbs,
-          nonce_verbs: trial_nonce_verbs,
+          stage: "train",
+
+          item_idx: block.item_idx,
+          verb: block.verb,
+          contrast_verbs: block.contrast_verbs,
+          nonce_verb: block.nonce_verb,
+
+          sentences: all_sentences,
+          scenes: all_scenes,
         }
       };
-      return scene_block;
+      return scene_trial;
     });
 
-    var test_verb_sequence = R.shuffle(Object.keys(item["verbs"]))
-    console.log(test_verb_sequence)
-    var test_questions = $.map(test_verb_sequence, function(verb) {
-      var verb_nonce = item["verbs"][verb].form_stem;
-      return {
-        prompt: "What is the most likely meaning of the word <strong>" + verb_nonce + "</strong>?",
-        options: R.shuffle(all_real_verbs),
-        required: true,
-        name: "meaning/" + verb,
-      }
-    });
+    var test_trial = {
+      type: "html-slider-response",
+      stimulus: "<p>You saw the following sentences:</p>" + all_sentence_htmls.join("") + "<p>Our linguists think that the verb <strong>" + block.nonce_verb + "</strong> might have the following English translations, but aren't sure exactly which. Please provide your best guess about the correct mapping.</p>",
+      labels: R.shuffle(all_real_verbs),
+      require_movement: true,
 
-    var test_block = {
-      type: "survey-multi-choice",
-      preamble: "<p>You saw the following sentences:</p>" + all_sentence_htmls.join("") + "<p>Our linguists think the verbs <strong>" + all_nonce_verbs[0] + "</strong> and <strong>" + all_nonce_verbs[1] + "</strong> might have the following English translations, but aren't sure exactly which Zarf word maps to which English word. Please provide your best guess about the correct mapping.</p>",
-      questions: test_questions,
       data: {
         condition: condition,
-        item_idx: item_idx,
-        verb_sequence: test_verb_sequence,
-        nonce_verb_sequence: $.map(test_verb_sequence, v => item.verbs[v].form_stem)
+        stage: "test",
+
+        item_idx: block.item_idx,
       },
     }
 
     var item_chunk = {
       chunk_type: "linear",
-      timeline: [item_intro_block].concat(training_blocks).concat([test_block]),
+      timeline: [item_intro_block].concat(training_trials).concat([test_trial]),
     }
     return item_chunk;
   });;
@@ -179,7 +164,7 @@ var setup_experiment = function(data) {
   experiment_blocks.push(age_block);
   experiment_blocks.push(demo_block);
 
-  experiment_blocks = experiment_blocks.concat(item_blocks)
+  experiment_blocks = experiment_blocks.concat(blocks)
 
   experiment_blocks.push(comments_block);
 

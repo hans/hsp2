@@ -21,9 +21,9 @@ myauth = PsiTurkAuthorization(config) # if you want to add a password protected 
 custom_code = Blueprint("custom_code", __name__, template_folder="templates", static_folder="static")
 
 
-item_sequences_f = Path("/materials/all_items.json")
-with item_sequences_f.open("r") as items_f:
-    ITEM_SEQUENCES = json.load(items_f)
+block_sequences_f = Path("/materials/all_items.json")
+with block_sequences_f.open("r") as blocks_f:
+    BLOCK_SEQUENCES = json.load(blocks_f)["block_sequences"]
 
 
 ###############
@@ -32,5 +32,5 @@ with item_sequences_f.open("r") as items_f:
 @custom_code.route("/item_seq", methods=["GET"])
 def get_item_seq():
     # TODO maybe not random sample, but ensure balanced sample
-    item_seq = random.choice(ITEM_SEQUENCES)
+    item_seq = random.choice(BLOCK_SEQUENCES)
     return jsonify(item_seq)

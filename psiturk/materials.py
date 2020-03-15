@@ -265,6 +265,7 @@ def prepare_block_sequence_dict(block_seq):
     blocks, nonce_info = block_seq
     for block in blocks:
         item_idx, test_verb, contrast_verbs, trials = block
+        nonce_verb = None
         processed_trials = []
 
         # Pre-process trial data
@@ -276,6 +277,8 @@ def prepare_block_sequence_dict(block_seq):
             #     L.error("Scene image %i at %s does not exist. Downloading.",
             #             scene, scene_image_path)
             scene_image_url = get_scene_image_url(scene)
+
+            nonce_verb = sentence_data["nonce_verb"]["stem"]
 
             processed_trials.append({
                 "item_idx": item_idx,
@@ -289,6 +292,7 @@ def prepare_block_sequence_dict(block_seq):
         ret["blocks"].append({
             "item_idx": item_idx,
             "verb": test_verb,
+            "nonce_verb": nonce_verb,
             "contrast_verbs": sorted(contrast_verbs),
             "trials": processed_trials,
         })
@@ -302,7 +306,7 @@ def main(args):
 
     print("Saving to ", args.out_path)
     with args.out_path.open("w") as out_f:
-        json.dump(block_seqs, out_f)
+        json.dump({"block_sequences": block_seqs}, out_f)
 
 
 if __name__ == "__main__":
