@@ -89,6 +89,7 @@ var setup_experiment = function(data) {
     var all_scenes = [];
 
     var all_sentence_htmls = [];
+    var all_image_htmls = [];
     var training_trials = $.map(R.shuffle(block["trials"]), function(trial) {
       preload_images.push(trial.scene_image_url);
 
@@ -115,7 +116,8 @@ var setup_experiment = function(data) {
       prompt += sentence_html;
       all_sentence_htmls.push(sentence_html);
 
-      var image_html = "<img class='stim-image' src='" + trial.scene_image_url + "' style='max-height: 300px;' />"
+      var image_html = "<img class='stim-image' src='" + trial.scene_image_url + "' style='max-height: 300px;' />";
+      all_image_htmls.push(image_html);
       var query = "<p>What might <strong>" + trial.sentence_data.nonce_verb.form + "</strong> mean?</p>"
       var stimulus = prompt + query + image_html;
 
@@ -143,9 +145,15 @@ var setup_experiment = function(data) {
 
     var test_labels = R.shuffle(all_real_verbs);
 
+    var train_summary = $.map(all_sentence_htmls, function(sentence_html, i) {
+      var image_html = all_image_htmls[i];
+      return "<div class='trial-summary'>"+ sentence_html + image_html + "</div>";
+    }).join("");
+    console.log(train_summary);
+
     var test_trial = {
       type: "html-slider-response",
-      stimulus: "<p>You saw the following sentences:</p>" + all_sentence_htmls.join("") + "<p>Our linguists think that the verb <strong>" + block.nonce_verb + "</strong> might have the following English translations, but aren't sure exactly which. Please provide your best guess about the correct mapping.</p>",
+      stimulus: "<div style='margin: auto'><p>You saw the following examples:</p>" + train_summary + "<br style='clear: left' /><p>Our linguists think that the verb <strong>" + block.nonce_verb + "</strong> might have the following English translations, but aren't sure exactly which. Please provide your best guess about the correct mapping.</p></div>",
       labels: test_labels,
       require_movement: true,
 
