@@ -9,4 +9,4 @@ RUN rm /psiturk/.psiturkconfig
 
 ARG SEQUENCE_LENGTH=3
 WORKDIR /psiturk
-RUN python3 materials.py -i $SEQUENCE_LENGTH
+RUN python3 materials.py -i $SEQUENCE_LENGTH -m 5

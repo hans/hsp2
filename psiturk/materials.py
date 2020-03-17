@@ -146,7 +146,7 @@ def prepare_sentence_nonces(item_row):
     return sentence, nonce_data, root_idx
 
 
-def prepare_block_sequences(df, items_per_sequence=2):
+def prepare_block_sequences(df, items_per_sequence=2, max_seqs_per_item_comb=None):
     """
     Prepare as many item blocks as possible without repeating items.
 
@@ -164,9 +164,10 @@ def prepare_block_sequences(df, items_per_sequence=2):
 
         combs.append(item_comb)
 
+    print("Total possible combinations:", len(combs))
     for item_comb in tqdm(combs):
         # Compute possible blocks per item.
-        blocks = defaultdict(list)
+        block_options = defaultdict(list)
         noncer = Noncer(nonce_df)
         nonce_verb_info = {}
 
@@ -177,13 +178,22 @@ def prepare_block_sequences(df, items_per_sequence=2):
                 contrast_verbs = set(item_rows.index.get_level_values("verb")) - {verb}
                 item_blocks, nonce_verb_info[verb] = prepare_blocks(item_idx, verb_rows,
                                                                     verb, contrast_verbs, noncer)
-                blocks[item_idx].extend(item_blocks)
+                block_options[item_idx].extend(item_blocks)
 
         # Convert from dataframe rows to dicts.
         nonce_verb_info = {verb: row.to_dict() for verb, row in nonce_verb_info.items()}
 
-        # Now yield all possible block sequences.
-        for block_seq in itertools.product(*blocks.values()):
+        for block_options_i in block_options.values():
+            random.shuffle(block_options_i)
+
+        all_block_seqs = itertools.product(*block_options.values())
+        if max_seqs_per_item_comb is not None:
+            iterator = zip(range(max_seqs_per_item_comb), all_block_seqs)
+        else:
+            iterator = enumerate(all_block_seqs)
+
+        # Now yield all possible block sequences, drawing one block per item.
+        for _, block_seq in iterator:
             yield block_seq, nonce_verb_info
 
 
@@ -301,7 +311,9 @@ def prepare_block_sequence_dict(block_seq):
 
 
 def main(args):
-    block_seqs = prepare_block_sequences(materials_df, items_per_sequence=args.items_per_sequence)
+    block_seqs = prepare_block_sequences(materials_df,
+            items_per_sequence=args.items_per_sequence,
+            max_seqs_per_item_comb=args.max_seqs_per_item_comb)
     block_seqs = [prepare_block_sequence_dict(block_seq) for block_seq in block_seqs]
 
     print("Saving to ", args.out_path)
@@ -314,5 +326,6 @@ if __name__ == "__main__":
     p = ArgumentParser()
     p.add_argument("-o", "--out_path", type=Path, default=Path("/materials/all_items.json"))
     p.add_argument("-i", "--items_per_sequence", type=int, default=3)
+    p.add_argument("-m", "--max_seqs_per_item_comb", type=int, default=None)
 
     main(p.parse_args())
