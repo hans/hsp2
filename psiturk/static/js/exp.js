@@ -74,7 +74,14 @@ var setup_experiment = function(data) {
         + "<p>We will hear Zarf speakers use this verb to describe things they see.</p>"
         + "<p>Next, we'll ask you to guess their translations in English.</p>"
       ],
-      data: {condition: condition, stage: "introduction"}
+      data: {
+        condition: condition,
+        stage: "introduction",
+        item_idx: block.item_idx,
+        verb: block.verb,
+        contrast_verbs: block.contrast_verbs,
+        nonce_verb: block.nonce_verb
+      }
     }
 
     // sentence pair -- scene training trials
@@ -127,17 +134,19 @@ var setup_experiment = function(data) {
           contrast_verbs: block.contrast_verbs,
           nonce_verb: block.nonce_verb,
 
-          sentences: all_sentences,
-          scenes: all_scenes,
+          sentence: trial.sentence_data.sentence,
+          scene: trial.scene,
         }
       };
       return scene_trial;
     });
 
+    var test_labels = R.shuffle(all_real_verbs);
+
     var test_trial = {
       type: "html-slider-response",
       stimulus: "<p>You saw the following sentences:</p>" + all_sentence_htmls.join("") + "<p>Our linguists think that the verb <strong>" + block.nonce_verb + "</strong> might have the following English translations, but aren't sure exactly which. Please provide your best guess about the correct mapping.</p>",
-      labels: R.shuffle(all_real_verbs),
+      labels: test_labels,
       require_movement: true,
 
       data: {
@@ -145,6 +154,14 @@ var setup_experiment = function(data) {
         stage: "test",
 
         item_idx: block.item_idx,
+        verb: block.verb,
+        contrast_verbs: block.contrast_verbs,
+        nonce_verb: block.nonce_verb,
+
+        sentences: all_sentences,
+        scenes: all_scenes,
+
+        slider_labels: test_labels,
       },
     }
 
