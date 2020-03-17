@@ -8,4 +8,4 @@ img.stim-image { padding: 2px; border: 2px solid #ccc; }
 
 .trial-summary { display: inline-block; margin-right: 10px; }
 .trial-summary p.zarf-sentence { font-size: 13pt; }
-.trial-summary img { max-height: 100px !important; }
+.trial-summary img { max-height: 160px !important; }
